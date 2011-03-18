@@ -1,0 +1,35 @@
+#!/usr/bin/env ruby
+
+require 'nokogiri'
+require 'open-uri'
+require 'curb'
+
+KEY = 'YOUR_API_KEY_HERE'
+curl = Curl::Easy.new
+
+Dir['**/*.nfo'].each do |file|
+  if (File.exists?("#{File.dirname(file)}/movie.tbn") and File.exists?("#{File.dirname(file)}/fanart.jpg"))
+    next
+  end
+
+  imdb = File.open(file, :encoding => "BINARY").grep(/imdb.com/i).first
+  imdb.sub!(/.*imdb.com.*?(\d+).*/i, '\1')
+  doc = Nokogiri::HTML(open("http://api.themoviedb.org/2.1/Movie.getImages/en/xml/#{KEY}/tt#{imdb}"))
+
+  puts "Fetching: #{doc.xpath('//movie/name').inner_text}\n"
+  Dir["#{File.dirname(file)}/poster-*.jpg"].each do |thumb|
+    next if File.exists?("#{File.dirname(file)}/movie.tbn")
+    thumb.sub!(/.*poster-(.*?).jpg/, '\1')
+    curl.url = doc.xpath("//images/poster[@id='#{thumb}']/image[@size='original']").first['url']
+    curl.perform
+    File.open("#{File.dirname(file)}/movie.tbn", 'w') {|f| f.write(curl.body_str)}
+  end
+
+  Dir["#{File.dirname(file)}/backdrop-*.jpg"].each do |thumb|
+    next if File.exists?("#{File.dirname(file)}/fanart.jpg")
+    thumb.sub!(/.*backdrop-(.*?).jpg/, '\1')
+    curl.url = doc.xpath("//images/backdrop[@id='#{thumb}']/image[@size='original']").first['url']
+    curl.perform
+    File.open("#{File.dirname(file)}/fanart.jpg", 'w') {|f| f.write(curl.body_str)}
+  end
+end
